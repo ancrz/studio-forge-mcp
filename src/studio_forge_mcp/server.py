@@ -2,8 +2,9 @@
 
 from __future__ import annotations
 
+import argparse
 from pathlib import Path
-from typing import Any
+from typing import Any, Literal, cast
 
 from mcp.server.fastmcp import FastMCP
 from starlette.responses import JSONResponse
@@ -88,8 +89,21 @@ def forge_memory_search(
     return {"status": "ok", "hits": [h.model_dump() for h in hits]}
 
 
-def main() -> None:
-    mcp.run(transport="streamable-http")
+def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
+    parser = argparse.ArgumentParser(description="studio-forge-mcp FastMCP server")
+    parser.add_argument(
+        "--transport",
+        choices=["streamable-http", "stdio"],
+        default=settings.transport,
+        help="MCP transport mode (default: FORGE_TRANSPORT or streamable-http)",
+    )
+    return parser.parse_args(argv)
+
+
+def main(argv: list[str] | None = None) -> None:
+    args = parse_args(argv)
+    transport = cast(Literal["streamable-http", "stdio"], args.transport)
+    mcp.run(transport=transport)
 
 
 if __name__ == "__main__":

@@ -91,10 +91,27 @@ Health endpoint: `GET http://127.0.0.1:8895/health`
 
 ## Installing in an MCP Ecosystem
 
-`studio-forge-mcp` currently runs over **Streamable HTTP** (`FORGE_HOST:FORGE_PORT`, default `http://127.0.0.1:8895/mcp`).
+`studio-forge-mcp` supports both **`stdio`** (for local desktop/IDE MCP clients such as Antigravity `~/.gemini/config/mcp_config.json`) and **Streamable HTTP** (for Docker or remote deployments on `FORGE_HOST:FORGE_PORT`, default `http://127.0.0.1:8895/mcp`).
 
-1. **Start the server** locally (`uv run studio-forge-mcp`) or via Docker (`docker run -d --name studio-forge-mcp -p 8895:8895 -v /path/to/sandbox:/sandbox studio-forge-mcp:0.1.0`).
-2. **Register the endpoint** in any MCP client that supports Streamable HTTP:
+### Option A: Local `stdio` Launcher (Recommended for Desktop/IDE Clients)
+
+Register [`scripts/forge-mcp-launch.sh`](scripts/forge-mcp-launch.sh) in your `mcp_config.json`:
+
+```json
+{
+  "mcpServers": {
+    "studio-forge-mcp": {
+      "command": "/home/ancruz/Documents/workspaces/studio-forge-mcp/scripts/forge-mcp-launch.sh",
+      "disabled": false
+    }
+  }
+}
+```
+
+### Option B: Streamable HTTP (Local or Docker)
+
+1. Start the server (`uv run studio-forge-mcp` or `docker run -d --name studio-forge-mcp -p 8895:8895 -v /path/to/sandbox:/sandbox studio-forge-mcp:0.1.0`).
+2. Register the HTTP endpoint in any Streamable HTTP-capable MCP client:
 
 ```json
 {
@@ -106,8 +123,6 @@ Health endpoint: `GET http://127.0.0.1:8895/health`
 }
 ```
 
-> **Note for `stdio`-only clients** (such as Antigravity `~/.gemini/config/mcp_config.json` `command` entries): `studio-forge-mcp` does not yet ship a `stdio` transport flag or an auto-plug launcher script (`scripts/*-launch.sh`) like `agent-execution-plane`. Connect via a Streamable HTTP-capable client or add a `stdio` transport option before registering as a `command` entry.
-
 ---
 
 ## Configuration
@@ -116,6 +131,7 @@ Health endpoint: `GET http://127.0.0.1:8895/health`
 |---|---|---|
 | `FORGE_HOST` | `0.0.0.0` | Server bind host |
 | `FORGE_PORT` | `8895` | Streamable HTTP / health port |
+| `FORGE_TRANSPORT` | `streamable-http` | MCP transport (`streamable-http` or `stdio`) |
 | `FORGE_SANDBOX_ROOT` | `/tmp/studio-forge-sandbox` | Isolated root directory for media/design files (Docker: `/sandbox`) |
 | `FORGE_MEMORY_DB` | `/tmp/studio-forge-sandbox/forge_memory.db` | SQLite + `sqlite-vec` database path (Docker: `/sandbox/forge_memory.db`) |
 

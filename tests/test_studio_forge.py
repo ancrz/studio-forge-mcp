@@ -6,9 +6,10 @@ from pathlib import Path
 
 import pytest
 
+from studio_forge_mcp.config import Settings
 from studio_forge_mcp.memory import ForgeVectorMemory
 from studio_forge_mcp.schemas import DesignSuiteRequest, MediaForgeRequest
-from studio_forge_mcp.server import _safe_sandbox_path
+from studio_forge_mcp.server import _safe_sandbox_path, parse_args
 
 
 def test_sdd_requests_validate() -> None:
@@ -34,3 +35,12 @@ def test_sqlite_vec_memory_roundtrip(tmp_path: Path) -> None:
 def test_sandbox_path_blocks_traversal() -> None:
     with pytest.raises(ValueError, match="escapes sandbox"):
         _safe_sandbox_path("../../etc/passwd")
+
+
+def test_transport_settings_and_cli_args(monkeypatch: pytest.MonkeyPatch) -> None:
+    assert Settings().transport == "streamable-http"
+    monkeypatch.setenv("FORGE_TRANSPORT", "stdio")
+    assert Settings().transport == "stdio"
+
+    args = parse_args(["--transport", "stdio"])
+    assert args.transport == "stdio"
