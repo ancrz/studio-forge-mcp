@@ -1,6 +1,6 @@
 # studio-forge-mcp
 
-> **Unified MCP Creative, Media & Document Editing Forge** — isolated **FFmpeg** multimedia pipelines, **SVG / raster / document** transformations, **Code Mode** batch orchestration, **Schema-Driven Development (SDD)**, and **`sqlite-vec` semantic memory**.
+> **Unified MCP Creative, Media & Document Editing Forge** — isolated **FFmpeg** multimedia pipelines, **SVG / raster / document** transformations, **Code Mode** polymorphic dispatch, **Schema-Driven Development (SDD)**, and **`sqlite-vec` semantic memory**.
 
 ---
 
@@ -8,7 +8,9 @@
 
 `studio-forge-mcp` is a standalone **Model Context Protocol (MCP)** server designed for AI coding and design agents that need reliable, sandboxed **media, vector, and document editing** without bloating LLM context windows.
 
-Instead of exposing dozens of single-action tools that force an agent into slow, token-heavy round-trips, `studio-forge-mcp` unifies domain capabilities behind **Code Mode** polymorphic tools, strict **Pydantic v2** SDD contracts, path-traversal-guarded sandboxes, and local **`sqlite-vec` (`vec0`, `float[64]`)** vector recall.
+Instead of exposing dozens of single-action tools, `studio-forge-mcp` groups domain capabilities behind **3 polymorphic tools** (`media_forge_ffmpeg`, `design_suite_forge`, `forge_memory_search`), strict **Pydantic v2** SDD contracts, path-traversal-guarded sandboxes, and local **`sqlite-vec` (`vec0`, `float[64]`)** vector recall.
+
+> **Current Status (v0.1.0 Scaffold):** SDD schemas, sandbox path guards, `sqlite-vec` memory, `/health` endpoint, FastMCP Streamable HTTP transport, and Docker runtime are operational. `media_forge_ffmpeg` and `design_suite_forge` currently validate, guard paths, and index jobs (`status: "ready"`), with full subprocess execution and advanced Code Mode batching next on the roadmap.
 
 ---
 
@@ -16,30 +18,33 @@ Instead of exposing dozens of single-action tools that force an agent into slow,
 
 ```mermaid
 flowchart LR
-    CLIENT["AI Agent / MCP Client"] -->|"Streamable HTTP :8895"| MCP["FastMCP Server (Python 3.14 + SDD)"]
+    CLIENT["AI Agent / MCP Client"] -->|"Streamable HTTP :8895 (/mcp)"| MCP["FastMCP Server (Python 3.14 + SDD)"]
     MCP -->|"media_forge_ffmpeg"| FFMPEG["FFmpeg Engine (probe, resize, crop, convert, audio)"]
     MCP -->|"design_suite_forge"| SUITE["Design & Doc Suite (SVG, Raster, PDF, WCAG, Office)"]
     MCP -->|"forge_memory_search"| VEC["SQLite + sqlite-vec (vec0 float[64])"]
-    FFMPEG --> SB["Isolated Sandbox (/sandbox)"]
+    FFMPEG --> SB["Isolated Sandbox (FORGE_SANDBOX_ROOT)"]
     SUITE --> SB
 ```
 
 ---
 
-## Code Mode Improvements
+## Code Mode & Token Efficiency
 
-`studio-forge-mcp` is built around **Code Mode** principles to maximize agent reliability and minimize token cost:
+`studio-forge-mcp` adopts **Code Mode** principles to minimize tool-catalog bloat and LLM round-trips:
 
-1. **Polymorphic Domain Dispatch**: Related operations are grouped into cohesive, strongly-typed tools (`media_forge_ffmpeg`, `design_suite_forge`, `forge_memory_search`) rather than sprawling tool catalogs.
-2. **Schema-Driven Development (SDD)**: Every request and response is validated at the boundary with **Pydantic v2** (`src/studio_forge_mcp/schemas.py`), preventing malformed parameters before subprocesses or file handlers run.
-3. **Sandboxed Path Normalization**: `_safe_sandbox_path()` resolves every input/output path inside `FORGE_SANDBOX_ROOT`, blocking directory traversal (`..`) and escaping symlinks.
-4. **Compact Structured Returns & Semantic Auto-Indexing**: Tools return concise JSON summaries instead of raw verbose logs, and automatically index executed jobs into **`sqlite-vec`** so future sessions can recall prior transformations by semantic similarity.
+| Capability | Status | Details |
+|---|---|---|
+| **Polymorphic Domain Dispatch** | Implemented | 3 cohesive tools (`media_forge_ffmpeg`, `design_suite_forge`, `forge_memory_search`) replace 13+ single-purpose tools, keeping MCP tool schemas compact. |
+| **Schema-Driven Development (SDD)** | Implemented | Pydantic v2 contracts (`src/studio_forge_mcp/schemas.py`) validate inputs at the boundary before any handler or subprocess runs. |
+| **Sandboxed Path Normalization** | Implemented | `_safe_sandbox_path()` resolves every path inside `FORGE_SANDBOX_ROOT`, blocking `..` traversal and escaping symlinks. |
+| **Semantic Auto-Indexing** | Implemented | Executed jobs are auto-indexed into `sqlite-vec` (`vec0` `float[64]`) for low-token recall via `forge_memory_search`. |
+| **Batch DAG & Field Projection** | Planned | Multi-step single-turn batching (`$prev.*` piping), `select_fields` projection, and `verbosity` tiers (`terse` / `summary` / `detail`). |
 
 ```mermaid
 flowchart TD
-    REQ["Agent Tool Call (Code Mode)"] --> SDD["Pydantic v2 SDD Validation"]
+    REQ["Agent Tool Call (Polymorphic Dispatch)"] --> SDD["Pydantic v2 SDD Validation"]
     SDD --> GUARD["Sandbox Path Guard (_safe_sandbox_path)"]
-    GUARD --> EXEC["Execute Media / Design Engine"]
+    GUARD --> EXEC["Media / Design Handler"]
     EXEC --> IDX["Auto-Index Summary in sqlite-vec (vec0)"]
     IDX --> COMPACT["Return Compact JSON Result"]
 ```
@@ -58,7 +63,7 @@ Full credit to the **[FFmpeg](https://ffmpeg.org/)** project for the underlying 
 ### Design, Vector & Document Suite (`design_suite_forge`)
 - `svg_optimize` / `raster_to_svg`: clean and vectorize artwork for web and design tools.
 - `extract_palette` / `wcag_contrast`: extract color palettes and verify WCAG accessibility ratios.
-- `doc_extract` / `pdf_render_pages`: extract structured text/tables and render PDF pages (powered by Poppler, Pillow, and Python document libraries).
+- `doc_extract` / `pdf_render_pages`: extract structured text/tables and render PDF pages (powered by Poppler and Python tooling).
 
 ### Semantic Artifact Memory (`forge_memory_search`)
 - Powered by **`sqlite-vec` (`v0.1.9`, `vec0` `float[64]`)** with deterministic 64-dimensional character-trigram embeddings (`src/studio_forge_mcp/memory.py`) for instant, zero-external-API recall over past `media_job` and `design_job` runs.
@@ -77,10 +82,31 @@ uv run studio-forge-mcp
 
 ```bash
 docker build -t studio-forge-mcp:0.1.0 .
-docker run --rm -p 8895:8895 studio-forge-mcp:0.1.0
+docker run --rm -p 8895:8895 -v /tmp/studio-forge-sandbox:/sandbox studio-forge-mcp:0.1.0
 ```
 
 Health endpoint: `GET http://127.0.0.1:8895/health`
+
+---
+
+## Installing in an MCP Ecosystem
+
+`studio-forge-mcp` currently runs over **Streamable HTTP** (`FORGE_HOST:FORGE_PORT`, default `http://127.0.0.1:8895/mcp`).
+
+1. **Start the server** locally (`uv run studio-forge-mcp`) or via Docker (`docker run -d --name studio-forge-mcp -p 8895:8895 -v /path/to/sandbox:/sandbox studio-forge-mcp:0.1.0`).
+2. **Register the endpoint** in any MCP client that supports Streamable HTTP:
+
+```json
+{
+  "mcpServers": {
+    "studio-forge-mcp": {
+      "url": "http://127.0.0.1:8895/mcp"
+    }
+  }
+}
+```
+
+> **Note for `stdio`-only clients** (such as Antigravity `~/.gemini/config/mcp_config.json` `command` entries): `studio-forge-mcp` does not yet ship a `stdio` transport flag or an auto-plug launcher script (`scripts/*-launch.sh`) like `agent-execution-plane`. Connect via a Streamable HTTP-capable client or add a `stdio` transport option before registering as a `command` entry.
 
 ---
 
@@ -90,5 +116,18 @@ Health endpoint: `GET http://127.0.0.1:8895/health`
 |---|---|---|
 | `FORGE_HOST` | `0.0.0.0` | Server bind host |
 | `FORGE_PORT` | `8895` | Streamable HTTP / health port |
-| `FORGE_SANDBOX_ROOT` | `/tmp/studio-forge-sandbox` | Isolated root directory for media/design files |
-| `FORGE_MEMORY_DB` | `/tmp/studio-forge-sandbox/forge_memory.db` | SQLite + `sqlite-vec` database path |
+| `FORGE_SANDBOX_ROOT` | `/tmp/studio-forge-sandbox` | Isolated root directory for media/design files (Docker: `/sandbox`) |
+| `FORGE_MEMORY_DB` | `/tmp/studio-forge-sandbox/forge_memory.db` | SQLite + `sqlite-vec` database path (Docker: `/sandbox/forge_memory.db`) |
+
+---
+
+## Development & Branching
+
+- **Branches**: `main` (stable releases) and `dev` (active development).
+- **Quality checks**:
+
+```bash
+uv run pytest -v
+uv run ruff check .
+uv run mypy src tests
+```
