@@ -57,8 +57,12 @@ def media_forge_ffmpeg(
         format=format,
     )
     resolved_in = _safe_sandbox_path(req.input_path)
+    resolved_out = _safe_sandbox_path(req.output_path) if req.output_path is not None else None
     memory_store.index("media_job", req.input_path, f"ffmpeg {req.action} on {req.input_path}")
-    return {"status": "ready", "action": req.action, "input": str(resolved_in)}
+    result: dict[str, Any] = {"status": "ready", "action": req.action, "input": str(resolved_in)}
+    if resolved_out is not None:
+        result["output"] = str(resolved_out)
+    return result
 
 
 @mcp.tool()
@@ -74,8 +78,12 @@ def design_suite_forge(
         output_path=output_path,
     )
     resolved_in = _safe_sandbox_path(req.input_path)
+    resolved_out = _safe_sandbox_path(req.output_path) if req.output_path is not None else None
     memory_store.index("design_job", req.input_path, f"suite {req.action} on {req.input_path}")
-    return {"status": "ready", "action": req.action, "input": str(resolved_in)}
+    result: dict[str, Any] = {"status": "ready", "action": req.action, "input": str(resolved_in)}
+    if resolved_out is not None:
+        result["output"] = str(resolved_out)
+    return result
 
 
 @mcp.tool()
