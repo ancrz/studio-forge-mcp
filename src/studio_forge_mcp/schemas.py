@@ -8,7 +8,15 @@ from pydantic import BaseModel, Field
 
 
 class MediaForgeRequest(BaseModel):
-    action: Literal["probe", "resize", "crop", "convert", "extract_audio", "waveform"]
+    action: Literal[
+        "probe",
+        "resize",
+        "crop",
+        "convert",
+        "extract_frame",
+        "extract_audio",
+        "waveform",
+    ]
     input_path: str = Field(..., min_length=1)
     output_path: str | None = None
     width: int | None = Field(default=None, ge=1, le=16384)
@@ -22,10 +30,13 @@ class DesignSuiteRequest(BaseModel):
         "raster_to_svg",
         "extract_palette",
         "wcag_contrast",
+        "remove_background",
         "doc_extract",
         "pdf_render_pages",
+        "data_sandbox_query",
+        "parse_attachment",
     ]
-    input_path: str = Field(..., min_length=1)
+    input_path: str = Field(default="", min_length=0)
     output_path: str | None = None
 
 

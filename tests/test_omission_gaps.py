@@ -59,14 +59,15 @@ class TestSandboxGuards:
         with pytest.raises(ValueError, match="escapes sandbox"):
             server._safe_sandbox_path("escape.txt")
 
-    def test_output_path_traversal_blocked_in_tools(
+    async def test_output_path_traversal_blocked_in_tools(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
     ) -> None:
         monkeypatch.setattr(server.settings, "sandbox_root", str(tmp_path))
         monkeypatch.setattr(server, "memory_store", ForgeVectorMemory(tmp_path / "mem.db"))
+        (tmp_path / "in.svg").write_text("<svg xmlns='http://www.w3.org/2000/svg'/>", encoding="utf-8")
 
         with pytest.raises(ValueError, match="escapes sandbox"):
-            server.media_forge_ffmpeg(
+            await server.media_forge_ffmpeg(
                 action="resize",
                 input_path="in.mp4",
                 output_path="../../outside.mp4",
@@ -75,7 +76,7 @@ class TestSandboxGuards:
             )
 
         with pytest.raises(ValueError, match="escapes sandbox"):
-            server.design_suite_forge(
+            await server.design_suite_forge(
                 action="svg_optimize",
                 input_path="in.svg",
                 output_path="../../outside.svg",
@@ -123,30 +124,37 @@ class TestMCPServerIntegration:
         assert payload["version"] == __version__
         assert payload["sqlite_vec"].startswith("v")
 
-    def test_tools_roundtrip_with_output_and_memory_recall(
+    async def test_tools_roundtrip_with_output_and_memory_recall(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
     ) -> None:
         sandbox = tmp_path / "sb"
+        sandbox.mkdir(parents=True, exist_ok=True)
+        (sandbox / "assets").mkdir()
+        (sandbox / "docs").mkdir()
+        (sandbox / "assets" / "logo.svg").write_text(
+            '<svg xmlns="http://www.w3.org/2000/svg"><g/><rect width="10" height="10"/></svg>',
+            encoding="utf-8",
+        )
+        (sandbox / "docs" / "spec.txt").write_text("Topos integrity spec v1", encoding="utf-8")
+
         monkeypatch.setattr(server.settings, "sandbox_root", str(sandbox))
         monkeypatch.setattr(server, "memory_store", ForgeVectorMemory(tmp_path / "rt.db"))
 
-        media_res = server.media_forge_ffmpeg(
-            action="convert",
-            input_path="raw/clip.mov",
-            output_path="out/clip.mp4",
-            format="mp4",
+        svg_res = await server.design_suite_forge(
+            action="svg_optimize",
+            input_path="assets/logo.svg",
+            output_path="out/logo.min.svg",
         )
-        assert media_res["status"] == "ready"
-        assert media_res["output"] == str((sandbox / "out/clip.mp4").resolve())
+        assert svg_res["status"] == "OK"
+        assert (sandbox / "out" / "logo.min.svg").exists()
 
-        design_res = server.design_suite_forge(
+        doc_res = await server.design_suite_forge(
             action="doc_extract",
-            input_path="docs/spec.pdf",
-            output_path="docs/spec.txt",
+            input_path="docs/spec.txt",
         )
-        assert design_res["status"] == "ready"
-        assert design_res["output"] == str((sandbox / "docs/spec.txt").resolve())
+        assert doc_res["status"] == "OK"
+        assert "Topos integrity spec v1" in doc_res["content"]
 
-        recall = server.forge_memory_search(query="convert raw/clip.mov", limit=5)
+        recall = server.forge_memory_search(query="doc_extract docs/spec.txt", limit=5)
         assert recall["status"] == "ok"
         assert len(recall["hits"]) >= 1

@@ -13,6 +13,7 @@ class Settings(BaseSettings):
     host: str = "0.0.0.0"
     port: int = 8895
     transport: Literal["streamable-http", "stdio"] = "streamable-http"
+    timeout_sec: float = 30.0
     sandbox_root: str = "/tmp/studio-forge-sandbox"
     memory_db: str = "/tmp/studio-forge-sandbox/forge_memory.db"
 

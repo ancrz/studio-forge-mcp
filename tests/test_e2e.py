@@ -78,6 +78,10 @@ def _extract_json(res: Any) -> dict[str, Any]:
 
 async def test_e2e_stdio_launcher_roundtrip(tmp_path: Path) -> None:
     sandbox = tmp_path / "stdio_sb"
+    (sandbox / "docs").mkdir(parents=True, exist_ok=True)
+    (sandbox / "docs" / "notes.csv").write_text(
+        "service,status\napi,healthy\nworker,degraded\n", encoding="utf-8"
+    )
     server_params = StdioServerParameters(
         command=str(LAUNCHER),
         env={
@@ -99,18 +103,17 @@ async def test_e2e_stdio_launcher_roundtrip(tmp_path: Path) -> None:
         }
 
         res = await session.call_tool(
-            "media_forge_ffmpeg",
+            "design_suite_forge",
             {
-                "action": "resize",
-                "input_path": "clips/e2e.mp4",
-                "output_path": "out/e2e_720p.mp4",
-                "width": 1280,
-                "height": 720,
+                "action": "data_sandbox_query",
+                "input_path": "docs/notes.csv",
+                "params": {"filter_col": "status", "filter_contains": "degraded"},
             },
         )
         payload = _extract_json(res)
-        assert payload["status"] == "ready"
-        assert payload["output"] == str((sandbox / "out/e2e_720p.mp4").resolve())
+        assert payload["status"] == "OK"
+        assert payload["total_matching"] == 1
+        assert payload["rows"][0]["service"] == "worker"
 
         bad = await session.call_tool(
             "media_forge_ffmpeg",
@@ -118,19 +121,25 @@ async def test_e2e_stdio_launcher_roundtrip(tmp_path: Path) -> None:
         )
         assert bad.isError
 
-        mem = await session.call_tool("forge_memory_search", {"query": "e2e.mp4", "limit": 3})
+        mem = await session.call_tool("forge_memory_search", {"query": "docs/notes.csv", "limit": 3})
         mem_payload = _extract_json(mem)
         assert mem_payload["status"] == "ok"
-        assert any(h["ref_id"] == "clips/e2e.mp4" for h in mem_payload["hits"])
+        assert any(h["ref_id"] == "docs/notes.csv" for h in mem_payload["hits"])
 
 
 async def test_e2e_streamable_http_and_health(tmp_path: Path) -> None:
+    (tmp_path / "sandbox" / "assets").mkdir(parents=True, exist_ok=True)
+    (tmp_path / "sandbox" / "assets" / "icon.svg").write_text(
+        '<svg xmlns="http://www.w3.org/2000/svg"><g/><circle cx="5" cy="5" r="4"/></svg>',
+        encoding="utf-8",
+    )
     with _running_http_server(tmp_path) as base_url:
         async with httpx.AsyncClient() as client:
             health = await client.get(f"{base_url}/health", timeout=2.0)
         assert health.status_code == 200
         h_json = health.json()
         assert h_json["status"] == "ok"
+        assert h_json["code_mode"] is True
         assert h_json["sqlite_vec"].startswith("v")
 
         async with (
@@ -147,5 +156,6 @@ async def test_e2e_streamable_http_and_health(tmp_path: Path) -> None:
                 },
             )
             payload = _extract_json(res)
-            assert payload["status"] == "ready"
-            assert payload["output"] == str((tmp_path / "sandbox" / "out/icon.min.svg").resolve())
+            assert payload["status"] == "OK"
+            assert payload["output_path"] == "out/icon.min.svg"
+            assert (tmp_path / "sandbox" / "out" / "icon.min.svg").exists()
